@@ -22,18 +22,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.accessoire.ecommerce.findifferences.R
+import com.accessoire.ecommerce.findifferences.GameState
 
 @Composable
-fun LevelsGames(navController : NavHostController) {
+fun LevelsGames(navController : NavHostController,level : MutableState<Int>) {
+    val gameState = remember { GameState() }
     Column {
         Box(
             modifier = Modifier
@@ -53,7 +57,7 @@ fun LevelsGames(navController : NavHostController) {
             columns = StaggeredGridCells.Fixed(2),
             contentPadding = PaddingValues(8.dp)
         ) {
-            items(6) { index ->
+            items(gameState.levels.size) { index ->
                 Card(
                     modifier = Modifier
                         .height(320.dp)
@@ -63,17 +67,41 @@ fun LevelsGames(navController : NavHostController) {
                     onClick = {}
                 ) {
                     Box {
-                        Image(
-                            painter = painterResource(id = R.drawable.image_1), // Placeholder or load image from URL
-                            contentDescription = null,
-                            contentScale = ContentScale.FillBounds,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    navController.navigate("Main_Screen")
-                                }
-                        )
-                        if (index > 0)
+                        Column (
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ){
+                            Text(
+                                text = gameState.levels[index].name,
+                                style = MaterialTheme.typography.labelLarge
+
+                            )
+                            Image(
+                                painter = painterResource(id = gameState.levels[index].image_1), // Placeholder or load image from URL
+                                contentDescription = null,
+                                contentScale = ContentScale.FillBounds,
+                                modifier = Modifier
+                                    .height(150.dp)
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        level.value = index
+                                        navController.navigate("Main_Screen")
+                                    }
+                            )
+                            Image(
+                                painter = painterResource(id = gameState.levels[index].image_2), // Placeholder or load image from URL
+                                contentDescription = null,
+                                contentScale = ContentScale.FillBounds,
+                                modifier = Modifier
+                                    .height(150.dp)
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        level.value = index
+                                        navController.navigate("Main_Screen")
+                                    }
+                            )
+                        }
+
+                        if (index > gameState.checkLevel(LocalContext.current))
                             lockedLevel()
                     }
 

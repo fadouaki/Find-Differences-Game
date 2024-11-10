@@ -1,5 +1,6 @@
 package com.accessoire.ecommerce.findifferences.Screens
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.media.MediaPlayer
 import android.os.Build
@@ -19,11 +20,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.AlertDialog
@@ -50,18 +49,20 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
 import com.accessoire.ecommerce.findifferences.Difference
 import com.accessoire.ecommerce.findifferences.GameState
 import com.accessoire.ecommerce.findifferences.R
 import kotlinx.coroutines.delay
 import kotlin.math.sqrt
 
-@Preview
 @Composable
-fun FindDifferencesGame() {
+fun FindDifferencesGame(
+    navHostController: NavHostController,
+    level: MutableState<Int>
+) {
     val context = LocalContext.current
     val gameState = remember { GameState() }
     var imageSize = remember { mutableStateOf(IntSize.Zero) }
@@ -71,33 +72,42 @@ fun FindDifferencesGame() {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        HeartsAndProgress(gameState)
+        HeartsAndProgress(gameState, level)
 
-        // Make ImagesComparaison take up all remaining space
         ImagesComparaison(
             context = context,
             gameState = gameState,
+            level = level,
             imageSize = imageSize,
             modifier = Modifier.weight(1f)
         )
 
-        BottomButton(gameState)
+        BottomButton(gameState, level)
     }
 
-    if (gameState.isGameOver()) {
+    if (gameState.isGameOver(level.value)) {
         GameOverDialog(
             context = context,
-            won = gameState.foundDifferences == gameState.totalDifferences,
-            onPlayAgain = { gameState.resetGame() }
+            gameState = gameState,
+            level = level,
+            won = gameState.foundDifferences == gameState.totalDifferences(level.value),
+            onPlayAgain = {
+                gameState.resetGame(level.value)
+
+            },
+            nextLevel = {
+                gameState.resetGame(level.value)
+                navHostController.popBackStack()
+            }
         )
     }
 }
 
 
-
 @Composable
 fun ImagesComparaison(
     context: Context,
+    level: MutableState<Int>,
     gameState: GameState,
     imageSize: MutableState<IntSize>,
     modifier: Modifier = Modifier
@@ -124,14 +134,18 @@ fun ImagesComparaison(
                     .padding(bottom = 5.dp)
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.image_1),
+                    painter = painterResource(id =gameState.levels.get(level.value).image_1),
                     contentDescription = "Room Image 1",
                     contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
                 )
-                gameState.DifferenceCircles(gameState.level1Differences, imageSize.value, false)
+                gameState.DifferenceCircles(
+                    gameState.levels[level.value].difference,
+                    imageSize.value,
+                    false
+                )
             }
             Box(
                 modifier = Modifier
@@ -140,7 +154,7 @@ fun ImagesComparaison(
                     .padding(top = 5.dp)
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.image_2),
+                    painter = painterResource(id = gameState.levels.get(level.value).image_2),
                     contentDescription = "Room Image 2",
                     contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
                     modifier = Modifier
@@ -149,23 +163,26 @@ fun ImagesComparaison(
                         .onSizeChanged { imageSize.value = it }
                         .pointerInput(Unit) {
                             detectTapGestures { offset ->
-                                handleImageTap(context, gameState, offset, imageSize.value)
+                                handleImageTap(context, gameState, level, offset, imageSize.value)
                             }
                         }
                 )
-                gameState.DifferenceCircles(gameState.level1Differences, imageSize.value, false)
+                gameState.DifferenceCircles(
+                    gameState.levels[level.value].difference,
+                    imageSize.value,
+                    false
+                )
             }
         }
     }
 }
-@Preview
-@Composable
-fun PreviewHeartAndProgress() {
-    HeartsAndProgress(GameState())
-}
+
 
 @Composable
-fun HeartsAndProgress(gameState: GameState) {
+fun HeartsAndProgress(
+    gameState: GameState,
+    level: MutableState<Int>
+) {
     Card(
         colors = CardColors(
             containerColor = Color.White,
@@ -210,11 +227,11 @@ fun HeartsAndProgress(gameState: GameState) {
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.Center
             ) {
-                repeat(gameState.totalDifferences - gameState.foundDifferences) { index ->
+                repeat(gameState.totalDifferences(level.value) - gameState.foundDifferences) { index ->
                     Icon(
-                        imageVector =Icons.Default.CheckCircle,
+                        imageVector = Icons.Default.CheckCircle,
                         contentDescription = "Progress",
-                        tint = Color.Green ,
+                        tint = Color.Green,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -226,7 +243,10 @@ fun HeartsAndProgress(gameState: GameState) {
 }
 
 @Composable
-fun BottomButton(gameState: GameState) {
+fun BottomButton(
+    gameState: GameState,
+    level: MutableState<Int>
+) {
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -240,7 +260,7 @@ fun BottomButton(gameState: GameState) {
         ) {
             Button(
                 onClick = {
-                    getHint(gameState)
+                    getHint(gameState, level)
                     gameState.loseLife()
                     gameState.foundDifference()
                 },
@@ -261,7 +281,7 @@ fun BottomButton(gameState: GameState) {
 
             }
             Button(
-                onClick = { gameState.resetGame() },
+                onClick = { gameState.resetGame(level.value) },
                 colors = ButtonColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = Color.Blue,
@@ -305,8 +325,11 @@ fun BottomButton(gameState: GameState) {
 
 }
 
-fun getHint(gameState: GameState) {
-    gameState.level1Differences.forEach { difference ->
+fun getHint(
+    gameState: GameState,
+    level: MutableState<Int>
+) {
+    gameState.levels[level.value].difference.forEach { difference ->
         if (!difference.isFoundState) {
             difference.isFoundState = true
             return
@@ -317,25 +340,46 @@ fun getHint(gameState: GameState) {
 @Composable
 fun GameOverDialog(
     context: Context,
+    gameState: GameState,
+    level: MutableState<Int>,
     won: Boolean,
-    onPlayAgain: () -> Unit
+    onPlayAgain: () -> Unit,
+    nextLevel: () -> Unit
 ) {
+    if (won) {
+        Log.d("Takkki", "woon")
+        playSound(context, R.raw.win)
+        if (gameState.checkLevel(context) < level.value + 1)
+            gameState.addLevel(context, level.value + 1)
+    } else
+        playSound(context, R.raw.lose_game)
+
     AlertDialog(
         onDismissRequest = { },
         title = { Text(text = if (won) "Congratulations!" else "Game Over") },
         text = { Text(text = if (won) "You found all the differences!" else "Better luck next time!") },
         confirmButton = {
-            Button(onClick = onPlayAgain) {
-                Text("Play Again")
+            Button(
+                onClick =
+                if (won)
+                    nextLevel
+                else
+                    onPlayAgain
+            ) {
+                Text(
+                    if (won)
+                        "Next Level"
+                    else
+                        "Play Again"
+                )
             }
         }
     )
-    if (won) {
-        playSound(context, R.raw.win)
-    } else
-        playSound(context, R.raw.lose_game)
+
+
 }
 
+@SuppressLint("DefaultLocale")
 @Composable
 fun GameTimer() {
     var seconds by remember { mutableStateOf(0) }
@@ -359,6 +403,7 @@ fun GameTimer() {
 
 
 fun isWithinDifference(touch: Offset, difference: Difference, imageSize: IntSize): Boolean {
+    Log.d("DifferenceTaki", "isWithinDifference: ${ imageSize.height } ")
     val dx = touch.x - difference.x * imageSize.width
     val dy = touch.y - difference.y * imageSize.height
     val isWithin = sqrt(dx * dx + dy * dy) <= difference.radius * imageSize.width
@@ -366,8 +411,14 @@ fun isWithinDifference(touch: Offset, difference: Difference, imageSize: IntSize
     return isWithin
 }
 
-fun handleImageTap(context: Context, gameState: GameState, offset: Offset, imageSize: IntSize) {
-    for (difference in gameState.level1Differences) {
+fun handleImageTap(
+    context: Context,
+    gameState: GameState,
+    level: MutableState<Int>,
+    offset: Offset,
+    imageSize: IntSize
+) {
+    for (difference in gameState.levels[level.value].difference) {
         if (!difference.isFound && isWithinDifference(offset, difference, imageSize)) {
             difference.isFoundState = true
             gameState.foundDifference()
